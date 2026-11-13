@@ -1,0 +1,341 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Sleep & Fall Alert System — AI Laptop Camera Safety Monitor</title>
+    <meta name="description" content="Real-time AI-powered student drowsiness and head slump/fall detection system using laptop camera, MediaPipe Face Mesh, and Web Audio API buzzer alarm.">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Screen-wide Strobe Alarm Effect -->
+    <div id="screen-strobe-overlay"></div>
+
+    <div class="app-container">
+        <!-- Top Navigation / Header -->
+        <header class="app-header">
+            <div class="brand-wrapper">
+                <div class="brand-icon-box">
+                    <span>⚡</span>
+                </div>
+                <div class="brand-text">
+                    <h1>STUDENT SLEEP & FALL ALERT SYSTEM</h1>
+                    <p>Computer Vision Webcam Monitor for Eye Closure & Head Slump / Collapse</p>
+                </div>
+            </div>
+
+            <div class="header-status-area">
+                <div class="session-summary-pills">
+                    <div class="pill-card">
+                        <span class="pill-label">Study Session</span>
+                        <span id="study-timer-display" class="pill-val">00:00:00</span>
+                    </div>
+                    <div class="pill-card">
+                        <span class="pill-label">Focus Score</span>
+                        <span id="focus-score-val" class="pill-val" style="color: var(--accent-emerald);">100%</span>
+                    </div>
+                </div>
+
+                <div id="system-status-badge" class="status-badge idle">
+                    SYSTEM IDLE
+                </div>
+            </div>
+        </header>
+
+        <!-- Main Dashboard Layout -->
+        <main class="main-grid">
+            <!-- Left Column: Camera Feed & Video HUD -->
+            <section class="camera-column">
+                <div class="glass-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">
+                            <i>👁</i> Live Webcam Observation Stream
+                        </span>
+                        <span class="hud-tag">
+                            <span class="hud-dot"></span> 468 3D FACIAL LANDMARKS
+                        </span>
+                    </div>
+
+                    <!-- Webcam Viewport -->
+                    <div class="camera-viewport-card" id="camera-viewport-wrapper">
+                        <!-- HUD Corner Brackets -->
+                        <div class="hud-corner hud-tl"></div>
+                        <div class="hud-corner hud-tr"></div>
+                        <div class="hud-corner hud-bl"></div>
+                        <div class="hud-corner hud-br"></div>
+
+                        <!-- Real-time HUD stats pill -->
+                        <div class="hud-pill-overlay">
+                            <span class="hud-tag">EAR: <strong id="val-ear">0.000</strong></span>
+                            <span class="hud-tag">Pitch: <strong id="val-pitch">0°</strong></span>
+                        </div>
+
+                        <!-- Hidden Video Element for Stream Processing -->
+                        <video id="webcam-video" playsinline muted autoplay></video>
+
+                        <!-- Canvas Display where landmarks & video are rendered -->
+                        <canvas id="camera-canvas"></canvas>
+                    </div>
+
+                    <!-- Emergency Critical Alarm Banner -->
+                    <div id="critical-alert-banner" class="critical-alarm-banner hidden">
+                        <div class="alarm-content">
+                            <span class="alarm-icon">🚨</span>
+                            <div class="alarm-text">
+                                <h3 id="alert-title">CRITICAL: SLEEP ALERT!</h3>
+                                <p id="alert-message">Student eyes closed or head fallen down!</p>
+                            </div>
+                        </div>
+                        <button id="btn-dismiss-alert" class="btn-dismiss">
+                            I'm Awake! (Dismiss)
+                        </button>
+                    </div>
+
+                    <!-- Main Action Controls Bar -->
+                    <div class="action-controls-row">
+                        <button id="btn-start-camera" class="btn-primary">
+                            <span>▶</span> Start Camera Monitoring
+                        </button>
+                        <button id="btn-stop-camera" class="btn-danger hidden">
+                            <span>⏹</span> Stop Camera
+                        </button>
+                        <button id="btn-calibrate" class="btn-secondary" disabled title="Calibrate upright head posture">
+                            <span>🎯</span> Calibrate Posture
+                        </button>
+                        <button id="btn-test-audio" class="btn-secondary" title="Test Buzzer Sound">
+                            <span>🔊</span> Test Alarm Sound
+                        </button>
+                    </div>
+
+                    <!-- Real-Time EAR Oscilloscope Graph -->
+                    <div class="oscilloscope-card">
+                        <div class="oscilloscope-header">
+                            <span>Eye Aspect Ratio (EAR) Real-Time Telemetry</span>
+                            <span>Safe Range: &gt; 0.22</span>
+                        </div>
+                        <canvas id="ear-graph-canvas"></canvas>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Right Column: Biometrics & Audio Settings -->
+            <section class="telemetry-deck">
+                <!-- Biometric Sensor Gauges -->
+                <div class="glass-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">
+                            <i>📊</i> Real-Time Biometrics
+                        </span>
+                        <span style="font-size: 11px; color: var(--text-muted);">AI VISION METRICS</span>
+                    </div>
+
+                    <div class="biometrics-grid">
+                        <!-- Metric 1: Eye Aspect Ratio -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span>Eye Closure (EAR)</span>
+                                <span>Threshold: <strong id="val-ear-thresh">0.21</strong></span>
+                            </div>
+                            <div class="metric-value-display">
+                                <span id="display-ear-val">EAR Active</span>
+                            </div>
+                            <div class="progress-track">
+                                <div id="ear-gauge-fill" class="progress-fill"></div>
+                            </div>
+                            <div class="metric-footer">
+                                <span>Closed (0.10)</span>
+                                <span>Open (0.35)</span>
+                            </div>
+                        </div>
+
+                        <!-- Metric 2: Head Pitch / Nod Angle -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span>Head Slump Angle</span>
+                                <span>Max: <strong id="val-headdrop-thresh">28°</strong></span>
+                            </div>
+                            <div class="metric-value-display">
+                                <span id="display-pitch-val">Pitch Deg</span>
+                            </div>
+                            <div class="progress-track">
+                                <div id="pitch-gauge-fill" class="progress-fill" style="width: 50%;"></div>
+                            </div>
+                            <div class="metric-footer">
+                                <span>Upright (0°)</span>
+                                <span>Slumped (&gt;28°)</span>
+                            </div>
+                        </div>
+
+                        <!-- Metric 3: Total Blinks -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span>Total Blinks</span>
+                                <span>Fatigue Index</span>
+                            </div>
+                            <div class="metric-value-display">
+                                <span id="val-blinks">0</span>
+                            </div>
+                            <div class="metric-footer">
+                                <span>Session cumulative</span>
+                            </div>
+                        </div>
+
+                        <!-- Metric 4: Blinks Per Minute -->
+                        <div class="metric-card">
+                            <div class="metric-header">
+                                <span>Blink Rate (BPM)</span>
+                                <span>Eye Strain</span>
+                            </div>
+                            <div class="metric-value-display">
+                                <span id="val-bpm">0</span> <span style="font-size: 12px; color: var(--text-muted);">bpm</span>
+                            </div>
+                            <div class="metric-footer">
+                                <span>Normal: 12-20 bpm</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Alert Sound & Sensitivity Controls -->
+                <div class="glass-panel">
+                    <div class="panel-header">
+                        <span class="panel-title">
+                            <i>🔔</i> Buzzer Alarm & Sensitivity Configuration
+                        </span>
+                    </div>
+
+                    <!-- Sound Type Selector -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Buzzer Alert Sound Profile</span>
+                        </div>
+                        <select id="select-sound-type" class="custom-select">
+                            <option value="buzzer" selected>⚡ Industrial Electric Buzzer (Rasping Alarm)</option>
+                            <option value="siren">🚨 High-Pitch Emergency Siren (Sweep)</option>
+                            <option value="beeps">⏰ Digital Pulse Beeps (High-Frequency)</option>
+                            <option value="voice">🗣 Speech Warning ("Attention! Wake up!")</option>
+                        </select>
+                    </div>
+
+                    <!-- Volume Slider -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Alarm Buzzer Volume</span>
+                            <span id="val-volume" class="setting-val">80%</span>
+                        </div>
+                        <input id="slider-volume" type="range" class="custom-range" min="0" max="100" value="80">
+                    </div>
+
+                    <!-- EAR Sleep Threshold Slider -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Eye Closure Threshold (EAR)</span>
+                            <span class="setting-val">&le; 0.21</span>
+                        </div>
+                        <input id="slider-ear-thresh" type="range" class="custom-range" min="0.15" max="0.30" step="0.01" value="0.21">
+                    </div>
+
+                    <!-- Sleep Delay Threshold Slider -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Sleep Trigger Delay (Eyes Closed Duration)</span>
+                            <span id="val-sleep-delay" class="setting-val">1.5s</span>
+                        </div>
+                        <input id="slider-sleep-delay" type="range" class="custom-range" min="0.8" max="3.5" step="0.1" value="1.5">
+                    </div>
+
+                    <!-- Head Tilt / Fall Down Angle Slider -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Head Fall / Slump Angle Threshold</span>
+                            <span class="setting-val">&ge; 28°</span>
+                        </div>
+                        <input id="slider-headdrop-thresh" type="range" class="custom-range" min="15" max="45" step="1" value="28">
+                    </div>
+
+                    <!-- Visual Overlay Mode -->
+                    <div class="setting-item">
+                        <div class="setting-label-row">
+                            <span>Camera Visual Overlay</span>
+                        </div>
+                        <select id="select-overlay-mode" class="custom-select">
+                            <option value="focus" selected>Eye Contours & Head Crosshair</option>
+                            <option value="mesh">Full 468 Facial Mesh Wireframe</option>
+                            <option value="off">Clean Video (No Overlay)</option>
+                        </select>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- Bottom Section: Incident Log & Auto-Snapshot Evidence -->
+        <section class="incidents-section">
+            <div class="glass-panel">
+                <div class="panel-header">
+                    <div style="display: flex; align-items: center; gap: 12px;">
+                        <span class="panel-title">
+                            <i>📸</i> Incident Log & Auto-Snapshot Evidence (<span id="val-incidents-count">0</span>)
+                        </span>
+                    </div>
+                    <div style="display: flex; gap: 10px;">
+                        <button id="btn-export-csv" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                            📥 Export CSV Report
+                        </button>
+                        <button id="btn-clear-log" class="btn-secondary" style="padding: 6px 14px; font-size: 12px;">
+                            🗑 Clear Log
+                        </button>
+                    </div>
+                </div>
+
+                <div class="table-responsive">
+                    <table class="custom-table">
+                        <thead>
+                            <tr>
+                                <th>Incident ID</th>
+                                <th>Timestamp</th>
+                                <th>Trigger Reason</th>
+                                <th>Sensor Telemetry</th>
+                                <th>Webcam Snapshot</th>
+                            </tr>
+                        </thead>
+                        <tbody id="incidents-table-body">
+                            <tr class="empty-row">
+                                <td colspan="5">No drowsiness or fall incidents recorded yet. Good job!</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- Project Submission & Viva Credits Footer -->
+        <footer class="app-footer">
+            <p><strong>Student Sleep & Fall Alert System</strong> | Academic Computer Vision Project</p>
+            <p style="margin-top: 4px;">Utilizes Google MediaPipe Face Mesh (468 3D Landmarks) & Web Audio API Buzzer Synthesis. Ready for School / College Project Demonstrations.</p>
+        </footer>
+    </div>
+
+    <!-- Modal for Snapshot Preview -->
+    <div id="snapshot-modal" class="modal-backdrop hidden">
+        <div class="modal-content">
+            <button id="modal-close-btn" class="modal-close">&times;</button>
+            <h3 style="font-size: 16px; margin-bottom: 8px;">📷 Incident Webcam Snapshot</h3>
+            <img id="modal-snapshot-img" src="" alt="Webcam Capture">
+            <p id="modal-caption"></p>
+        </div>
+    </div>
+
+    <!-- MediaPipe Face Mesh & Camera Utils Scripts (CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
+
+    <!-- Local Application Logic -->
+    <script src="js/audio.js"></script>
+    <script src="js/detector.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
